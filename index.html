@@ -1,0 +1,411 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI対話型トラウマノート</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --main-pink: #E9A4B8;
+            --support-green: #7A9B7A;
+            --bg-off-white: #F8F7F5;
+            --text-charcoal: #4E4E4E;
+        }
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: var(--bg-off-white);
+            color: var(--text-charcoal);
+        }
+        h1, h2, h3, h4 {
+            font-family: 'Noto Serif JP', serif;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid var(--main-pink);
+            width: 40px;
+            height: 40px;
+            animation: spin 2s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .toast-message {
+            animation: fadeInOut 3s ease-in-out forwards;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(-20px); }
+            10% { opacity: 1; transform: translateY(0); }
+            90% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-20px); }
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+
+    <div id="main-container" class="container mx-auto max-w-2xl p-4 sm:p-8">
+        <header class="text-center mb-10">
+            <h1 class="text-3xl sm:text-4xl font-semibold" style="color: var(--text-charcoal);">
+                AI対話型トラウマノート v2.1
+            </h1>
+            <p class="mt-2 text-sm">安心して、あなたの感情を書き出しましょう。</p>
+        </header>
+       
+        <p id="error-message" class="hidden text-red-500 bg-red-100 p-3 rounded-lg mb-4"></p>
+        <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-50"></div>
+
+
+        <main>
+            <form id="add-note-form" class="mb-8 p-6 bg-white rounded-lg shadow-sm">
+                <h2 class="text-xl font-semibold mb-4" style="font-family: 'Noto Serif JP', serif;">新しいノート</h2>
+                <textarea
+                    id="new-note-input"
+                    placeholder="今、感じていることを、そのまま言葉にしてみてください..."
+                    class="w-full h-40 p-3 border border-gray-300 rounded-lg focus:ring-2"
+                    style="--tw-ring-color: var(--main-pink);"
+                ></textarea>
+                <div class="text-right mt-4">
+                    <button
+                        type="submit"
+                        class="text-white font-bold py-2 px-6 rounded-full shadow-lg hover:opacity-90 transition-transform transform hover:scale-105 disabled:opacity-50"
+                        style="background-color: var(--main-pink);"
+                    >
+                        保存する
+                    </button>
+                </div>
+            </form>
+
+
+            <div class="space-y-6">
+                 <h2 class="text-xl font-semibold border-b-2 pb-2" style="font-family: 'Noto Serif JP', serif; border-color: var(--main-pink);">過去のノート</h2>
+                 <div id="notes-container" class="space-y-4">
+                     <!-- Notes will be rendered here by JavaScript -->
+                 </div>
+                 <p id="no-notes-message" class="hidden text-center text-gray-500 py-8">まだノートはありません。</p>
+            </div>
+        </main>
+    </div>
+   
+    <!-- AI Chat Modal -->
+    <div id="chat-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col" style="height: 80vh;">
+            <header class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-lg font-semibold" style="font-family: 'Noto Serif JP', serif;">AIとの対話</h2>
+                <button id="close-chat-btn" class="p-1 rounded-full hover:bg-gray-200">&times;</button>
+            </header>
+            <div id="chat-history" class="flex-1 p-4 overflow-y-auto space-y-4">
+                <!-- Chat messages will be rendered here -->
+            </div>
+            <footer class="p-4 border-t">
+                <form id="chat-form" class="flex space-x-2">
+                    <input
+                        type="text"
+                        id="chat-input"
+                        placeholder="気持ちを言葉にしてみましょう..."
+                        class="flex-1 p-2 border border-gray-300 rounded-full focus:ring-2"
+                        style="--tw-ring-color: var(--main-pink);"
+                    />
+                    <button
+                        type="submit"
+                        class="text-white font-bold w-10 h-10 rounded-full flex items-center justify-center transition"
+                        style="background-color: var(--main-pink);"
+                    >
+                        &uarr;
+                    </button>
+                </form>
+            </footer>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let notes = [];
+            let currentNoteForChat = null;
+
+
+            // DOM Elements
+            const addNoteForm = document.getElementById('add-note-form');
+            const newNoteInput = document.getElementById('new-note-input');
+            const notesContainer = document.getElementById('notes-container');
+            const noNotesMessage = document.getElementById('no-notes-message');
+            const chatModal = document.getElementById('chat-modal');
+            const closeChatBtn = document.getElementById('close-chat-btn');
+            const chatForm = document.getElementById('chat-form');
+            const chatInput = document.getElementById('chat-input');
+            const chatHistoryContainer = document.getElementById('chat-history');
+
+
+            // --- Note Rendering ---
+            const renderNotes = () => {
+                notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                notesContainer.innerHTML = '';
+                if (notes.length === 0) {
+                    noNotesMessage.classList.remove('hidden');
+                } else {
+                    noNotesMessage.classList.add('hidden');
+                    notes.forEach(note => {
+                        const noteElement = document.createElement('div');
+                        noteElement.className = 'bg-white p-5 rounded-lg shadow-sm';
+                        noteElement.innerHTML = `
+                            <div class="flex justify-between items-start">
+                                <p class="whitespace-pre-wrap leading-relaxed flex-1">${note.text}</p>
+                                <button data-id="${note.id}" class="delete-note-btn ml-4 p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors" aria-label="削除">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
+                                <p class="text-xs text-gray-400">${new Date(note.createdAt).toLocaleString('ja-JP')}</p>
+                                <button data-id="${note.id}" class="open-chat-btn text-sm font-semibold py-1 px-3 rounded-full hover:opacity-90 transition" style="color: #9d2667; background-color: rgba(233, 164, 184, 0.2);">
+                                    AIとこの感情を深掘りする
+                                </button>
+                            </div>
+                        `;
+                        notesContainer.appendChild(noteElement);
+                    });
+                }
+            };
+           
+            // --- Local Storage ---
+            const loadNotes = () => {
+                const savedNotes = localStorage.getItem('traumaNotes');
+                if (savedNotes) {
+                    notes = JSON.parse(savedNotes).map(n => ({...n, createdAt: new Date(n.createdAt)}));
+                }
+                renderNotes();
+            };
+            const saveNotes = () => {
+                localStorage.setItem('traumaNotes', JSON.stringify(notes));
+            };
+
+
+
+
+            // --- Event Handlers ---
+            addNoteForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const text = newNoteInput.value.trim();
+                if (text === '') return;
+
+
+                const newNote = {
+                    id: Date.now().toString(),
+                    text,
+                    createdAt: new Date(),
+                    chat: []
+                };
+                notes.push(newNote);
+                newNoteInput.value = '';
+                saveNotes();
+                renderNotes();
+            });
+
+
+            notesContainer.addEventListener('click', (e) => {
+                if (e.target.closest('.delete-note-btn')) {
+                    const noteId = e.target.closest('.delete-note-btn').dataset.id;
+                    notes = notes.filter(n => n.id !== noteId);
+                    saveNotes();
+                    renderNotes();
+                }
+                if (e.target.closest('.open-chat-btn')) {
+                    const noteId = e.target.closest('.open-chat-btn').dataset.id;
+                    currentNoteForChat = notes.find(n => n.id === noteId);
+                    openChatModal();
+                }
+            });
+
+
+            // --- Chat Modal Logic ---
+            const openChatModal = async () => {
+                chatModal.classList.remove('hidden');
+               
+                if (!currentNoteForChat.chat || currentNoteForChat.chat.length === 0) {
+                    const initialUserMessage = { role: 'user', text: currentNoteForChat.text };
+                    currentNoteForChat.chat.push(initialUserMessage);
+                    renderChatHistory();
+                   
+                    const thinkingDiv = renderThinkingIndicator();
+                    chatForm.querySelector('button').disabled = true;
+
+
+                    try {
+                        await new Promise(resolve => setTimeout(resolve, 1500)); // ★★★変更点: 意図的な遅延
+                        const prompt = createChatPrompt(currentNoteForChat.text, []);
+                        const aiResponse = await generateAiResponse(prompt);
+                        currentNoteForChat.chat.push({ role: 'ai', text: aiResponse });
+                        saveNotes();
+                    } catch(err) {
+                        console.error("AI Error", err);
+                        currentNoteForChat.chat.push({ role: 'ai', text: '申し訳ありません、エラーが発生しました。' });
+                    } finally {
+                        thinkingDiv.remove();
+                        renderChatHistory();
+                        chatForm.querySelector('button').disabled = false;
+                    }
+                } else {
+                    renderChatHistory();
+                }
+            };
+
+
+            const renderThinkingIndicator = () => {
+                const thinkingDiv = document.createElement('div');
+                thinkingDiv.className = 'flex justify-start';
+                thinkingDiv.innerHTML = `<div class="bg-gray-100 px-4 py-2 rounded-2xl"><span class="animate-pulse">...</span></div>`;
+                chatHistoryContainer.appendChild(thinkingDiv);
+                chatHistoryContainer.scrollTop = chatHistoryContainer.scrollHeight;
+                return thinkingDiv;
+            }
+
+
+            closeChatBtn.addEventListener('click', () => {
+                chatModal.classList.add('hidden');
+                currentNoteForChat = null;
+            });
+           
+            const renderChatHistory = () => {
+                 chatHistoryContainer.innerHTML = '';
+                 currentNoteForChat.chat.forEach(msg => {
+                     const msgContainer = document.createElement('div');
+                     msgContainer.className = `flex items-start gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`;
+
+
+                     if (msg.role === 'user') {
+                         const escapedText = msg.text.replace(/"/g, '&quot;');
+                         msgContainer.innerHTML = `
+                             <button title="この内容で新しいノートを作成する" class="promote-btn p-1 text-gray-400 hover:text-pink-500 transition-colors" data-text="${escapedText}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 pointer-events-none" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                             </button>
+                             <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-2xl bg-pink-100">
+                                 <p class="whitespace-pre-wrap">${msg.text}</p>
+                             </div>`;
+                     } else {
+                         msgContainer.innerHTML = `<div class="max-w-xs lg:max-w-md px-4 py-2 rounded-2xl bg-gray-100"><p class="whitespace-pre-wrap">${msg.text}</p></div>`;
+                     }
+                     chatHistoryContainer.appendChild(msgContainer);
+                 });
+                 chatHistoryContainer.scrollTop = chatHistoryContainer.scrollHeight;
+            };
+           
+            chatHistoryContainer.addEventListener('click', (e) => {
+                if (e.target.closest('.promote-btn')) {
+                    const textToPromote = e.target.closest('.promote-btn').dataset.text;
+                    const newNote = {
+                        id: Date.now().toString(),
+                        text: textToPromote,
+                        createdAt: new Date(),
+                        chat: []
+                    };
+                    notes.push(newNote);
+                    saveNotes();
+                    renderNotes();
+                    closeChatBtn.click();
+                    showToast('新しいノートとして保存しました');
+                }
+            });
+           
+            const showToast = (message) => {
+                const toastContainer = document.getElementById('toast-container');
+                const toast = document.createElement('div');
+                toast.className = 'toast-message bg-green-500 text-white text-sm font-bold px-4 py-2 rounded-full shadow-lg';
+                toast.textContent = message;
+                toastContainer.appendChild(toast);
+                setTimeout(() => {
+                    toast.remove();
+                }, 3000);
+            };
+
+
+            chatForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const text = chatInput.value.trim();
+                if (text === '') return;
+
+
+                currentNoteForChat.chat.push({ role: 'user', text });
+                chatInput.value = '';
+                renderChatHistory();
+               
+                const thinkingDiv = renderThinkingIndicator();
+                e.target.querySelector('button').disabled = true;
+
+
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 1500)); // ★★★変更点: 意図的な遅延
+                    const prompt = createChatPrompt(currentNoteForChat.text, currentNoteForChat.chat);
+                    const aiResponse = await generateAiResponse(prompt);
+                    currentNoteForChat.chat.push({ role: 'ai', text: aiResponse });
+                    saveNotes();
+                } catch (err) {
+                    console.error("AI Error", err);
+                    currentNoteForChat.chat.push({ role: 'ai', text: '申し訳ありません、エラーが発生しました。' });
+                } finally {
+                    thinkingDiv.remove();
+                    renderChatHistory();
+                    e.target.querySelector('button').disabled = false;
+                }
+            });
+           
+            const createChatPrompt = (initialNote, history) => {
+                const historyText = history.map(msg => `${msg.role === 'user' ? 'あなた' : 'AI'}: ${msg.text}`).join('\n');
+                // ★★★ 変更点: AIへの指示を更新 ★★★
+                return `
+あなたは、トラウマノートの専門カウンセラーです。あなたの目的は、ユーザーが自分の感情の根本原因となった「過去の類似体験」を思い出す手助けをすることです。
+
+
+# ユーザーの最初のノート
+「${initialNote}」
+
+
+# これまでの対話
+${historyText}
+
+
+# あなたの次の行動
+上記の対話をふまえ、ユーザーが「過去の似たような出来事」を思い出せるような、優しく、短い、開かれた質問を一つだけ返してください。感情を深掘りするのではなく、あくまで過去の事実を思い出すことに焦点を当ててください。
+**良い質問の例:**
+- 「その気持ち、以前にも感じたことはありますか？」
+- 「他に、似たような状況になった時のことを思い出せますか？」
+- 「その出来事と似たようなパターンは、子供の頃にもありましたか？」
+
+
+**悪い質問の例:**
+- 「なぜそう感じたのだと思いますか？」（解釈を促すためNG）
+- 「もっと詳しく教えてください」（深掘りすぎるためNG）
+`;
+            };
+
+
+            const generateAiResponse = async (prompt) => {
+                const apiKey = "AIzaSyAdjWYPpgAnLfIflzpTBth1N5NN1_qHa0E"; // Your actual API key
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+                const requestBody = { contents: [{ parts: [{ text: prompt }] }] };
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+                if (!response.ok) throw new Error(`AI APIエラー: ${response.statusText}`);
+                const result = await response.json();
+                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0].text) {
+                    return result.candidates[0].content.parts[0].text;
+                } else {
+                    throw new Error("AIから有効な応答がありませんでした。");
+                }
+            };
+           
+            // --- Initial Load ---
+            loadNotes();
+
+
+        });
+    </script>
+</body>
+</html>
