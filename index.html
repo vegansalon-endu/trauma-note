@@ -1,0 +1,146 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI対話型トラウマノート</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --main-pink: #E9A4B8;
+            --support-green: #7A9B7A;
+            --bg-off-white: #F8F7F5;
+            --text-charcoal: #4E4E4E;
+        }
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: var(--bg-off-white);
+            color: var(--text-charcoal);
+        }
+        h1, h2, h3, h4 {
+            font-family: 'Noto Serif JP', serif;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid var(--main-pink);
+            width: 40px;
+            height: 40px;
+            animation: spin 2s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .toast-message {
+            animation: fadeInOut 3s ease-in-out forwards;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(-20px); }
+            10% { opacity: 1; transform: translateY(0); }
+            90% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-20px); }
+        }
+        .typing-cursor::after {
+            content: '▍';
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+
+    <div id="main-container" class="container mx-auto max-w-2xl p-4 sm:p-8">
+        <header class="text-center mb-10">
+            <h1 class="text-3xl sm:text-4xl font-semibold" style="color: var(--text-charcoal);">
+                AI対話型トラウマノート v2.8
+            </h1>
+            <p class="mt-2 text-sm">安心して、あなたの感情を書き出しましょう。</p>
+        </header>
+        
+        <p id="error-message" class="hidden text-red-500 bg-red-100 p-3 rounded-lg mb-4"></p>
+        <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-50"></div>
+
+
+        <main>
+            <form id="add-note-form" class="mb-8 p-6 bg-white rounded-lg shadow-sm">
+                <h2 class="text-xl font-semibold mb-2" style="font-family: 'Noto Serif JP', serif;">新しいノート</h2>
+                 <p class="text-sm text-gray-600 mb-4">
+                    あなたが今思い出せる嫌な思い出、出来事とその時に感じた嫌だった気持ちをここに書いてみてください。<br>
+                    そして、その出来事と気持ちのメモを毎日でも読み返して、嫌な気持ちがなくなるまで繰り返してください。それが、トラウマを解消するということです。
+                </p>
+                <textarea
+                    id="new-note-input"
+                    placeholder=""
+                    class="w-full h-40 p-3 border border-gray-300 rounded-lg focus:ring-2"
+                    style="--tw-ring-color: var(--main-pink);"
+                ></textarea>
+                <div class="text-right mt-4">
+                    <button 
+                        type="submit" 
+                        class="text-white font-bold py-2 px-6 rounded-full shadow-lg hover:opacity-90 transition-transform transform hover:scale-105 disabled:opacity-50"
+                        style="background-color: var(--main-pink);"
+                    >
+                        保存する
+                    </button>
+                </div>
+            </form>
+
+
+            <div class="space-y-6">
+                 <h2 class="text-xl font-semibold border-b-2 pb-2" style="font-family: 'Noto Serif JP', serif; border-color: var(--main-pink);">過去のノート</h2>
+                 <div id="notes-container" class="space-y-4">
+                     </div>
+                 <p id="no-notes-message" class="hidden text-center text-gray-500 py-8">まだノートはありません。</p>
+            </div>
+        </main>
+
+
+        <footer class="mt-16 pt-8 border-t border-gray-200 space-y-10">
+            <div class="text-center">
+                <h3 class="text-xl font-bold mb-3" style="color: var(--text-charcoal);">次のステップへ</h3>
+                <p class="text-gray-700 mb-6 max-w-xl mx-auto">
+                    心のざわつきが落ち着いたら、次は「体」との繋がりに目を向けてみませんか？<br>あなたの不調の根本原因は、食事にも隠されているかもしれません。
+                </p>
+                <a href="https://vegansalon-endu.github.io/ai-shindan/" class="inline-block text-white font-bold py-3 px-10 rounded-full shadow-lg hover:opacity-90 transition-all duration-300 transform hover:scale-105" style="background-color: var(--main-pink);">
+                    AI心と体の根本原因診断を試す
+                </a>
+            </div>
+        
+            <div class="text-center">
+                <h3 class="text-xl font-bold mb-3" style="color: var(--support-green);">より専門的なサポートが必要な方へ</h3>
+                <p class="text-gray-700 mb-6 max-w-xl mx-auto">
+                    トラウマノートは、正しく実践することで絶大な効果を発揮しますが、一人で深いトラウマと向き合うのは辛い作業です。<br>より確実な効果と、専門家による安全なサポートを求める方は、こちらのサロンをご利用ください。
+                </p>
+                <a href="https://lounge.dmm.com/detail/9373/index/" target="_blank" rel="noopener noreferrer" class="inline-block text-white font-bold py-3 px-10 rounded-full shadow-lg hover:opacity-90 transition-all duration-300 transform hover:scale-105" style="background-color: var(--support-green);">
+                    「かずみのトラウマ解消ノート」サロンを見る
+                </a>
+            </div>
+        </footer>
+    </div>
+    
+    <div id="chat-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col" style="height: 80vh;">
+            <header class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-lg font-semibold" style="font-family: 'Noto Serif JP', serif;">AIとの対話</h2>
+                <button id="close-chat-btn" class="p-1 rounded-full hover:bg-gray-200">&times;</button>
+            </header>
+            <div id="chat-history" class="flex-1 p-4 overflow-y-auto space-y-4">
+                </div>
+            <footer id="chat-footer" class="p-4 border-t">
+                </footer>
+        </div>
+    </div>
+
+
+    <script>
+        // ... (JavaScriptの動作部分は変更ありません) ...
+    </script>
+</body>
+</html>
